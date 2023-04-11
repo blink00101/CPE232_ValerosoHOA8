@@ -1,0 +1,66 @@
+---
+- name: Download Nagios and Nagios plugins
+  unarchive:
+    src: https://github.com/NagiosEnterprises/nagioscore/archive/nagios-4.4.6.tar.gz
+    dest: /usr/local/bin
+    remote_src: yes
+    mode: 0755
+    owner: root
+    group: root
+
+- name: Compile Nagios
+  shell: >
+    cd /usr/local/bin/nagioscore-nagios-4.4.6 && \
+    ./configure --with-command-group=nagcmd && \
+    make all && \
+    sudo make install && \
+    sudo make install-init && \
+    sudo make install-config && \
+    sudo make install-commandmode
+
+- name: Add Nagios group
+  group:
+   name: nagcmd
+   state: present
+
+- name: Add Nagios user
+  user:
+   name: nagios
+   comment: "Nagios Monitoring User"
+   groups: nagcmd
+   shell: /bin/bash
+   system: true
+
+- name: Allow Apache access to Nagios files
+  lineinfile:
+    dest: /etc/apache2/conf-available/nagios.conf
+    line: "Alias /nagios /usr/local/nagios/share/"
+  notify:
+    - restart apache2
+
+- name: Enable Apache modules
+  apache2_module:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - rewrite
+    - cgi
+  notify:
+    - restart apache2
+
+- name: Set Nagios admin password
+  shell: >
+    sudo htpasswd -b -c /usr/local/nagios/etc/htpasswd.users nagiosadmin nagiosadmin
+
+- name: Verify Nagios configuration
+  command: /usr/local/nagios/bin/nagios -v /usr/local/nagios/etc/nagios.cfg
+  changed_when: false
+  register: nagios_config
+
+- name: Start Nagios service
+  service:
+    name: nagios
+    state: started
+    enabled: true
+  notify:
+    - restart apache2

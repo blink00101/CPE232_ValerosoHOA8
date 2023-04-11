@@ -1,0 +1,10 @@
+---
+- hosts: centOS
+  become: True
+  roles:
+    - centOS_Task
+
+- hosts: Ubuntu
+  become: True
+  roles:
+    - Ubuntu_Task
